@@ -42,8 +42,12 @@ class ZAPClient(
         val url = "$baseUrl/api/v1/products".toHttpUrl()
         val responseBody = performRequest(url)
 
+        // API returns {"success": true, "data": [...]}
         try {
-            json.decodeFromString<List<ZAPProduct>>(responseBody)
+            val response = json.decodeFromString<APIResponse<List<ZAPProduct>>>(responseBody)
+            response.data ?: throw DecodingException("No data in response")
+        } catch (e: ZAPException) {
+            throw e
         } catch (e: Exception) {
             throw DecodingException("Failed to decode products response", e)
         }
@@ -71,17 +75,14 @@ class ZAPClient(
 
         val responseBody = performRequest(urlBuilder.build())
 
+        // API returns {"success": true, "data": {"product": ..., "channel": ..., "firmware": ...}}
         try {
-            json.decodeFromString<ZAPFirmware>(responseBody)
+            val response = json.decodeFromString<APIResponse<FirmwareResponseData>>(responseBody)
+            response.data?.firmware ?: throw NotFoundException("No firmware found for product '$product'")
+        } catch (e: ZAPException) {
+            throw e
         } catch (e: Exception) {
-            // Try wrapped response
-            try {
-                val response = json.decodeFromString<FirmwareResponse>(responseBody)
-                response.firmware ?: throw NotFoundException("No firmware found for product '$product'")
-            } catch (e2: Exception) {
-                if (e2 is ZAPException) throw e2
-                throw DecodingException("Failed to decode firmware response", e)
-            }
+            throw DecodingException("Failed to decode firmware response", e)
         }
     }
 
@@ -106,15 +107,14 @@ class ZAPClient(
 
         val responseBody = performRequest(urlBuilder.build())
 
+        // API returns {"success": true, "data": {"product": ..., "channel": ..., "versions": [...]}}
         try {
-            json.decodeFromString<List<ZAPFirmware>>(responseBody)
+            val response = json.decodeFromString<APIResponse<FirmwareHistoryResponseData>>(responseBody)
+            response.data?.versions ?: emptyList()
+        } catch (e: ZAPException) {
+            throw e
         } catch (e: Exception) {
-            try {
-                val response = json.decodeFromString<FirmwareResponse>(responseBody)
-                response.versions ?: emptyList()
-            } catch (e2: Exception) {
-                throw DecodingException("Failed to decode firmware history response", e)
-            }
+            throw DecodingException("Failed to decode firmware history response", e)
         }
     }
 
@@ -138,16 +138,14 @@ class ZAPClient(
 
         val responseBody = performRequest(urlBuilder.build())
 
+        // API returns {"success": true, "data": {"product": ..., "channel": ..., "firmware": ...}}
         try {
-            json.decodeFromString<ZAPFirmware>(responseBody)
+            val response = json.decodeFromString<APIResponse<FirmwareResponseData>>(responseBody)
+            response.data?.firmware ?: throw NotFoundException("Firmware version '$version' not found")
+        } catch (e: ZAPException) {
+            throw e
         } catch (e: Exception) {
-            try {
-                val response = json.decodeFromString<FirmwareResponse>(responseBody)
-                response.firmware ?: throw NotFoundException("Firmware version '$version' not found")
-            } catch (e2: Exception) {
-                if (e2 is ZAPException) throw e2
-                throw DecodingException("Failed to decode firmware response", e)
-            }
+            throw DecodingException("Failed to decode firmware response", e)
         }
     }
 

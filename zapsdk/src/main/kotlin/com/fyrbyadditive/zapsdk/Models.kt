@@ -30,36 +30,79 @@ data class ZAPFirmware(
     /** Firmware version string (e.g., "1.2.0") */
     val version: String,
 
-    /** Release channel (e.g., "stable", "beta") */
-    val channel: String,
-
-    /** Board type this firmware targets */
-    val board: String? = null,
+    /** Optional build number. When present, takes precedence over version for determining latest firmware. */
+    @SerialName("build_number")
+    val buildNumber: Int? = null,
 
     /** Release notes or changelog */
     @SerialName("release_notes")
     val releaseNotes: String? = null,
 
+    /** Minimum app version required to flash this firmware */
+    @SerialName("min_app_version_flash")
+    val minAppVersionFlash: String? = null,
+
+    /** Minimum app version required to run this firmware */
+    @SerialName("min_app_version_run")
+    val minAppVersionRun: String? = null,
+
+    /** Maximum app version allowed to flash this firmware (null means no limit) */
+    @SerialName("max_app_version_flash")
+    val maxAppVersionFlash: String? = null,
+
+    /** Maximum app version allowed to run this firmware (null means no limit) */
+    @SerialName("max_app_version_run")
+    val maxAppVersionRun: String? = null,
+
     /** Date the firmware was published (ISO 8601 format) */
     @SerialName("published_at")
     val publishedAt: String? = null,
 
-    /** Minimum version requirements by platform */
-    val requirements: FirmwareRequirements? = null,
-
     /** Download information for setup and update binaries */
     val downloads: FirmwareDownloads? = null
-)
+) {
+    /**
+     * Returns true if this firmware is newer than the given firmware.
+     * Build numbers take precedence over version strings when present.
+     */
+    fun isNewerThan(other: ZAPFirmware): Boolean {
+        // If both have build numbers, compare them
+        if (buildNumber != null && other.buildNumber != null) {
+            return buildNumber > other.buildNumber
+        }
 
-/**
- * Minimum version requirements for different platforms
- */
-@Serializable
-data class FirmwareRequirements(
-    val ios: String? = null,
-    val android: String? = null,
-    val firmware: String? = null
-)
+        // If only this has a build number, it's considered newer
+        if (buildNumber != null && other.buildNumber == null) {
+            return true
+        }
+
+        // If only other has a build number, this is older
+        if (buildNumber == null && other.buildNumber != null) {
+            return false
+        }
+
+        // Fall back to semantic version comparison
+        return compareVersions(version, other.version) > 0
+    }
+
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").mapNotNull { it.toIntOrNull() }
+        val parts2 = v2.split(".").mapNotNull { it.toIntOrNull() }
+
+        val maxLength = maxOf(parts1.size, parts2.size)
+
+        for (i in 0 until maxLength) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+
+            if (p1 != p2) {
+                return p1 - p2
+            }
+        }
+
+        return 0
+    }
+}
 
 /**
  * Download URLs and metadata for firmware binaries
@@ -78,14 +121,23 @@ data class FirmwareDownloadInfo(
     /** Download URL for the firmware binary */
     val url: String,
 
+    /** Original filename */
+    val filename: String? = null,
+
     /** File size in bytes */
     val size: Long? = null,
 
     /** MD5 checksum of the file */
-    val md5: String? = null,
+    @SerialName("checksum_md5")
+    val checksumMd5: String? = null,
 
     /** SHA256 checksum of the file */
-    val sha256: String? = null
+    @SerialName("checksum_sha256")
+    val checksumSha256: String? = null,
+
+    /** Board type (if specific to a board) */
+    @SerialName("board_type")
+    val boardType: String? = null
 )
 
 /**
@@ -122,19 +174,42 @@ data class FirmwareDownloadResult(
 
         md5?.let { expectedMD5 ->
             val actualMD5 = data.md5Hash()
-            if (!actualMD5.equals(expectedMD5, ignoreCase = true)) {
+            // Content-MD5 header uses base64 encoding per HTTP spec (RFC 2616)
+            // X-Checksum-MD5 uses hex encoding
+            val normalizedExpected = normalizeChecksum(expectedMD5)
+            if (!actualMD5.equals(normalizedExpected, ignoreCase = true)) {
                 return false
             }
         }
 
         sha256?.let { expectedSHA256 ->
             val actualSHA256 = data.sha256Hash()
-            if (!actualSHA256.equals(expectedSHA256, ignoreCase = true)) {
+            // SHA256 header typically uses hex encoding
+            val normalizedExpected = normalizeChecksum(expectedSHA256)
+            if (!actualSHA256.equals(normalizedExpected, ignoreCase = true)) {
                 return false
             }
         }
 
         return true
+    }
+
+    /**
+     * Normalizes a checksum to hex format.
+     * Handles both hex strings and base64-encoded checksums (like Content-MD5 header).
+     */
+    private fun normalizeChecksum(checksum: String): String {
+        // If it looks like base64 (contains = or has non-hex characters), decode it
+        if (checksum.contains("=") || checksum.contains("+") || checksum.contains("/")) {
+            return try {
+                val decoded = java.util.Base64.getDecoder().decode(checksum)
+                decoded.joinToString("") { "%02x".format(it) }
+            } catch (e: Exception) {
+                checksum // Return as-is if decoding fails
+            }
+        }
+        // Already hex or invalid, return as-is
+        return checksum
     }
 
     override fun equals(other: Any?): Boolean {
@@ -159,10 +234,46 @@ data class FirmwareDownloadResult(
 }
 
 // Internal response wrappers
+
+/** Generic API response wrapper */
 @Serializable
-internal data class FirmwareResponse(
-    val firmware: ZAPFirmware? = null,
-    val versions: List<ZAPFirmware>? = null
+internal data class APIResponse<T>(
+    val success: Boolean,
+    val data: T? = null
+)
+
+/** Product info returned in firmware response */
+@Serializable
+data class ProductInfo(
+    val slug: String,
+    val name: String
+)
+
+/** Channel info returned in firmware response */
+@Serializable
+data class ChannelInfo(
+    val slug: String,
+    val name: String
+)
+
+/** Response data for firmware endpoint */
+@Serializable
+internal data class FirmwareResponseData(
+    val product: ProductInfo,
+    val channel: ChannelInfo,
+    @SerialName("available_channels")
+    val availableChannels: List<String>,
+    val firmware: ZAPFirmware
+)
+
+/** Response data for firmware history endpoint */
+@Serializable
+internal data class FirmwareHistoryResponseData(
+    val product: ProductInfo,
+    val channel: ChannelInfo,
+    @SerialName("available_channels")
+    val availableChannels: List<String>,
+    val versions: List<ZAPFirmware>
 )
 
 @Serializable

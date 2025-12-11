@@ -179,13 +179,31 @@ data class ZAPProduct(
 ```kotlin
 data class ZAPFirmware(
     val version: String,                    // e.g., "1.2.0"
-    val channel: String,                    // e.g., "stable"
-    val board: String?,                     // Board type
+    val buildNumber: Int?,                  // Optional build number (takes precedence over version)
     val releaseNotes: String?,              // Changelog
+    val minAppVersionFlash: String?,        // Min app version to flash
+    val minAppVersionRun: String?,          // Min app version to run
+    val maxAppVersionFlash: String?,        // Max app version to flash (null = no limit)
+    val maxAppVersionRun: String?,          // Max app version to run (null = no limit)
     val publishedAt: String?,               // Release date (ISO 8601)
-    val requirements: FirmwareRequirements?,
     val downloads: FirmwareDownloads?
-)
+) {
+    // Compare firmware versions
+    fun isNewerThan(other: ZAPFirmware): Boolean
+}
+```
+
+#### Version Comparison
+
+Use `isNewerThan()` to compare firmware versions. Build numbers take precedence over version strings when present:
+
+```kotlin
+val latest = client.getLatestFirmware(product = "fame-printer")
+val current: ZAPFirmware = // device's current firmware
+
+if (latest.isNewerThan(current)) {
+    println("Update available: ${latest.version}")
+}
 ```
 
 #### FirmwareType
