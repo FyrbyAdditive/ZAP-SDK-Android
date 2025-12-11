@@ -10,21 +10,33 @@ A Kotlin SDK for the ZAP Firmware API, providing easy access to firmware updates
 
 ## Installation
 
-### Gradle (Kotlin DSL)
+### JitPack (Recommended)
 
-Add the SDK to your app's `build.gradle.kts`:
+Add JitPack repository to your project's `settings.gradle.kts`:
 
 ```kotlin
-dependencies {
-    implementation("com.fyrbyadditive:zapsdk:1.0.0")
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
 }
 ```
 
-### Gradle (Groovy)
+Then add the dependency to your app's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("com.github.FyrbyAdditive:ZAP-SDK-Android:1.0.0")
+}
+```
+
+Or with Groovy (`build.gradle`):
 
 ```groovy
 dependencies {
-    implementation 'com.fyrbyadditive:zapsdk:1.0.0'
+    implementation 'com.github.FyrbyAdditive:ZAP-SDK-Android:1.0.0'
 }
 ```
 
@@ -322,6 +334,10 @@ If you're using ProGuard/R8, add these rules to your `proguard-rules.pro`:
 -dontwarn okhttp3.**
 -dontwarn okio.**
 ```
+
+## Source Code
+
+GitHub: [https://github.com/FyrbyAdditive/ZAP-SDK-Android](https://github.com/FyrbyAdditive/ZAP-SDK-Android)
 
 ## License
 
