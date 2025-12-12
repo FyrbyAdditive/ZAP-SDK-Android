@@ -186,9 +186,19 @@ class ZAPClient(
         }
 
         response.use { resp ->
-            handleStatusCode(resp.code, resp.body?.string())
+            // Read body bytes first (can only be consumed once)
+            val data = resp.body?.bytes()
 
-            val data = resp.body?.bytes() ?: throw NetworkException("Empty response body")
+            // For non-success status codes, try to parse error from the body
+            if (resp.code !in 200..299) {
+                val bodyString = data?.toString(Charsets.UTF_8)
+                handleStatusCode(resp.code, bodyString)
+            }
+
+            if (data == null || data.isEmpty()) {
+                throw NetworkException("Empty response body")
+            }
+
             val md5 = resp.header("X-Checksum-MD5") ?: resp.header("Content-MD5")
             val sha256 = resp.header("X-Checksum-SHA256")
 
