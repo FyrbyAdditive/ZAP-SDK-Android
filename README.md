@@ -190,6 +190,10 @@ data class ZAPFirmware(
 ) {
     // Compare firmware versions
     fun isNewerThan(other: ZAPFirmware): Boolean
+
+    // Check app version compatibility
+    fun canFlash(appVersion: String): Boolean
+    fun canRun(appVersion: String): Boolean
 }
 ```
 
@@ -203,6 +207,25 @@ val current: ZAPFirmware = // device's current firmware
 
 if (latest.isNewerThan(current)) {
     println("Update available: ${latest.version}")
+}
+```
+
+#### App Version Compatibility
+
+Use `canFlash()` and `canRun()` to check if your app version is compatible with a firmware:
+
+```kotlin
+val firmware = client.getLatestFirmware(product = "fame-printer")
+val myAppVersion = "2.1.0"
+
+if (firmware.canFlash(myAppVersion)) {
+    // Safe to flash this firmware
+} else {
+    println("App version not compatible for flashing")
+}
+
+if (firmware.canRun(myAppVersion)) {
+    // App can communicate with devices running this firmware
 }
 ```
 
@@ -359,4 +382,4 @@ GitHub: [https://github.com/FyrbyAdditive/ZAP-SDK-Android](https://github.com/Fy
 
 ## License
 
-Copyright (c) Fyr by Additive. All rights reserved.
+Copyright 2025 Timothy Ellis, Fyrby Additive Manufacturing & Engineering

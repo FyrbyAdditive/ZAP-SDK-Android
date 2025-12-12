@@ -62,6 +62,46 @@ data class ZAPFirmware(
     val downloads: FirmwareDownloads? = null
 ) {
     /**
+     * Returns true if the given app version is allowed to flash this firmware.
+     * Checks against minAppVersionFlash and maxAppVersionFlash constraints.
+     * @param appVersion The app version to check (e.g., "1.2.0")
+     * @return true if the app version meets the flash requirements
+     */
+    fun canFlash(appVersion: String): Boolean {
+        minAppVersionFlash?.let { minVersion ->
+            if (compareVersions(appVersion, minVersion) < 0) {
+                return false
+            }
+        }
+        maxAppVersionFlash?.let { maxVersion ->
+            if (compareVersions(appVersion, maxVersion) > 0) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * Returns true if the given app version is allowed to run this firmware.
+     * Checks against minAppVersionRun and maxAppVersionRun constraints.
+     * @param appVersion The app version to check (e.g., "1.2.0")
+     * @return true if the app version meets the run requirements
+     */
+    fun canRun(appVersion: String): Boolean {
+        minAppVersionRun?.let { minVersion ->
+            if (compareVersions(appVersion, minVersion) < 0) {
+                return false
+            }
+        }
+        maxAppVersionRun?.let { maxVersion ->
+            if (compareVersions(appVersion, maxVersion) > 0) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
      * Returns true if this firmware is newer than the given firmware.
      * Build numbers take precedence over version strings when present.
      */
